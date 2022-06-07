@@ -1,5 +1,6 @@
 from main import db
 from flask_login import UserMixin 
+from werkzeug.security import generate_password_hash
 from sqlalchemy.orm import backref
 from sqlalchemy.sql import func
 

@@ -10,9 +10,9 @@ class Products(db.Model):
 
     id=db.Column(db.Integer,primary_key=True,autoincrement=True)
     name=db.Column(db.String(80),unique=True,nullable=False)
-    buying_price=db.Column(db.Integer,unique=True,nullable=False)
-    Selling_price=db.Column(db.Integer,unique=True,nullable=False)
-    product_quantity=db.Column(db.Integer,unique=True,nullable=False)
+    buying_price=db.Column(db.Integer,nullable=False)
+    Selling_price=db.Column(db.Integer,nullable=False)
+    product_quantity=db.Column(db.Integer,nullable=False)
 
     rel=db.relationship(Sales , backref='products') 
     rel=db.relationship(Stocks ,backref='products')

@@ -1,4 +1,5 @@
 from flask import Flask, request, render_template, redirect, flash, session
+from sqlalchemy import extract,func
 from flask_login import LoginManager , login_user, login_required,logout_user,current_user
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.sql.expression import true
@@ -10,7 +11,7 @@ from flask.helpers import url_for
 app = Flask(__name__)
 
 app.config['SQLALCHEMY_DATABASE_URI'] ='postgresql://postgres:0742978312@localhost:5432/ORM'
-# app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = true
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = true
 app.config['SECRET_KEY'] = 'Super_secret_key'
 
 login_manager =LoginManager(app)
@@ -41,38 +42,9 @@ def create_table():
  
 @app.route('/')
 def index():
-   
+    #return home
     return render_template("index.html")
 
-
-
-@app.route('/login')
-def login():
-    return render_template('login.html')
-
-
-@app.route('/logout')
-# @login_required
-def logout():
-    logout_user()
-    return redirect(url_for('/'))
-
-@app.route("/login", methods=["POST"])
-def login_post():
-    
-    email = request.form.get('email')
-    password = request.form.get('password')
-
-    user=Users.query.filter_by(email=email).first()
-    
-    if not user or not check_password_hash(user.password,password):
-        flash('Please check your login details and try again')
-        return redirect(url_for('login'))
-
-
-    login_user(user)
-    return redirect(url_for('index'))
-    
 
 @app.route('/signup')  
 def signup():
@@ -88,23 +60,56 @@ def signup_post():
         username=request.form.get('username')
         password=request.form.get('password')
 
-        user=Users.query.filter_by(email=email)
+        user=Users.query.filter_by(email=email).first()
         if user:
             flash('Email address already exists')
             return redirect(url_for('signup'))
        
 
-        new_user=Users(email=email,username=username,password=password)
+        new_user=Users(email=email,username=username,password=generate_password_hash(password, method='sha256'))
         db.session.add(new_user)
         db.session.commit()
         
         return redirect(url_for('login'))
 
+
+@app.route('/login')
+def login():
+
+    return render_template('login.html')
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('/'))
+
+@app.route("/login", methods=['POST'] )
+def login_post():
+
+     if request.method == 'POST':
+
+        email = request.form.get('email')
+        password = request.form.get('password')
+ 
+        user=Users.query.filter_by(email=email).first()
         
+        if not user or not  check_password_hash(user.password,password):
+            flash('Please check your login details and try again')
+            return redirect(url_for('login'))
+
+        print("user has been logged in")
+        login_user(user)
+        #if the above check passes, we know the user has the credentials
+        return redirect(url_for('index'))
+    
+     return render_template('login.html')
+    
     
 
 @app.route("/inventory", methods=["POST", "GET"])
-# @login_required
+@login_required
 def inventory():    
     if request.method == "POST":
         name=request.form['name']
@@ -114,7 +119,7 @@ def inventory():
 
         new_product=Products(name=name,buying_price=BP,Selling_price=SP,product_quantity=quantity)
         db.session.add(new_product)
-        db.session.commit()
+        db.session.commit() 
 
         # id=Products.query.filter_by(product_name=product_name).all()
         # pid=id.id
@@ -126,47 +131,44 @@ def inventory():
     all_products=Products.query.all()
     return render_template('inventory.html',y=all_products)
 
-
-@app.route('/sales')
-def sales():
-   return render_template('sales.html')
     
 @app.route("/sales", methods=["POST", "GET"])
-#@login_required
+@login_required
 def sales_post():
     # if "user" in session:
     #     user=session["user"]
-    # if request.method == "POST":
+    if request.method == "POST":
         
         product_id=request.form["product_id"]
         stock_quantity=request.form["quantity"]
         
         g=int(stock_quantity)
         st=Products.query.filter_by(id=product_id).all()
-        y=st[0].stock_quantity
+        y=st[0].product_quantity
 
         rem=y-g
-        print(rem)
+        
         if rem < 0:
             flash('Quantity ordered is higher than stock available')
-            return redirect(url_for("product"))
+            return redirect(url_for("inventory"))
         else:    
-            updated=Products.query.filter_by(id=product_id).update({Products.stock_quantity:rem})
+            print(rem)
+            updated=Products.query.filter_by(id=product_id).update({Products.product_quantity:rem})
             db.session.commit()
-            new_sale=Sales(product_id=product_id,stock_quantity=stock_quantity)
+            new_sale=Sales(product_id=product_id,quantity=stock_quantity)
             db.session.add(new_sale)
             db.session.commit()
             return redirect("/sales")
         
-    # else:c
+    else:
         sale=Sales.query.all()
         # print(sale)
-        lst4=sale
+        # lst4=sale
         # print(sale[0].product.id)
         # sale=Sales.query.filter_by(product.__name__).all()
         # print(sale)
 
-        return render_template("sales.html", lst4=lst4)
+        return render_template("sales.html", x=sale)
     # else:
     #     return redirect(url_for("login"))
 
@@ -193,7 +195,7 @@ def edit():
 
 
 @app.route("/stock")
-# @login_required
+@login_required
 def stock():
     if request.method=="POST":
         pid= request.form["item-id"]
@@ -220,6 +222,34 @@ def stock():
 
         return render_template("stock.html",list1=list1)    
 
+
+@app.route("/dashboard")
+@login_required
+def dashboard():
+   
+#pie-chart for the top five products
+    prod=[]
+    data5=[]
+    top5 = Sales.query.with_entities(Products.name, func.sum(Sales.quantity)).join(Products).group_by(Products.name ).order_by(func.sum(Sales.quantity)).limit(5) 
+    
+    for i in top5:
+        prod.append(i[0])
+        data5.append(int(i[1]))
+    print(data5)
+
+#bar-chart for the sales per month
+    spm = Sales.query.with_entities(func.sum(Sales.quantity * Products.Selling_price),extract('month',Sales.created_at)).join(Products).group_by(extract('month',Sales.created_at))
+    monthspm=[]
+    dataspm=[]
+    for x in spm:
+        monthspm.append(x[1])
+        dataspm.append(int(x[0]))
+    print("dataspm",dataspm)
+
+
+    # sbp = Sales.query.with_entities(func.sum(Sales.quantity * Products.Selling_price),Products.name.join(Products).group_by(Products.name).order)
+    
+    return render_template("dashboard.html", prod=prod,data5=data5,monthspm=monthspm,dataspm=dataspm)
 
 if __name__ == "__main__":
     app.run(debug=True)

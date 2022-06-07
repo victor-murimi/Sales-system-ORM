@@ -42,17 +42,17 @@
                 <th scope="col">quantity</th>
                 <th scope="col">created_at</th>
                
-            </tr>
+             </tr>
         </thead>
         <tbody>
-            {%for sales in x%}
+            {% for sales in x %}
             <tr>
                 <td>{{sales.id}}</td>
                 <td>{{sales.product_id}}</td>
                 <td>{{sales.quantity}}</td>
                 <td>{{sales.created_at}}</td>
             </tr>
-            {%endfor%}
+            {% endfor %}
 
         </tbody>
     </table>
